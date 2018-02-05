@@ -4,21 +4,38 @@
 
 import java.net.*;
 import java.io.*;
+import java.util.Scanner;
 
 public class RayTracerClient
 {
 
     public static void main(String[] args) throws IOException
     {
-        if(args.length <= 2)
+        if(args.length != 2)
         {
-            System.out.println("Usage: java RayTracerClient [input.scene] [output.ppm] [address1] ... [addressN]")
+            System.out.println("Usage: java RayTracerClient [input.scene] [output.ppm]")
             System.exit(1);
             return;
         }
         String sceneFile = args[0];
         String outputFile = args[1];
-        int numServers = args.length-2;
-        String[] servers = new String[numServers];
+        String[] addresses = getAddresses();
+    }
+    public static String[] getAddresses()
+    {
+        try
+        {
+            List<String> addresses = new ArrayList<String>();
+            File addressFile = new File("SERVER_LIST");
+            Scanner sc = new Scanner(addressFile);
+            while(sc.hasNextLine())
+            {
+                addresses.append(sc.nextLine());
+            }
+        } catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+        return addresses.toArray();
     }
 }

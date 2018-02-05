@@ -11,7 +11,7 @@ public class RayTracerServer
 	{
 		try
 		{
-			socket = new DatagramSocket(listenPort);
+			DatagramSocket socket = new DatagramSocket(listenPort);
 			byte[] sphereData = new byte[1024];
 			byte[] xData = new byte[40];
 
