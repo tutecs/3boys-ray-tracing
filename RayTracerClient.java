@@ -20,6 +20,11 @@ public class RayTracerClient
         String sceneFile = args[0];
         String outputFile = args[1];
         String[] addresses = getAddresses();
+		
+		for(int i = 0; i < addresses.length; ++i)
+		{
+			sendRender(addresses[i], xs[i]);
+		}	
     }
     public static String[] getAddresses()
     {
@@ -38,4 +43,12 @@ public class RayTracerClient
         }
         return addresses.toArray();
     }
+    public static void sendRender(String address, int[] xs)
+    {
+		int xStart = xs[0];
+		int xStop = xs[1];
+		try
+		{
+		{
+			Socket socket = new DatagramSocket
 }
