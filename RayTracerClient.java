@@ -20,6 +20,15 @@ public class RayTracerClient
         String sceneFile = args[0];
         String outputFile = args[1];
         String[] addresses = getAddresses();
+
+        List<Sphere> spheres = readScene(sceneFile);
+
+
+        for(int i = 0; i < addresses.length)
+        {
+            sendData(address, xRange);
+        }
+
     }
     public static String[] getAddresses()
     {
@@ -37,5 +46,10 @@ public class RayTracerClient
             e.printStackTrace();
         }
         return addresses.toArray();
+    }
+
+    public static void sendData(String address, int[] xs)
+    {
+        
     }
 }
