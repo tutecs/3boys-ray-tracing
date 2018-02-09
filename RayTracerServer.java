@@ -26,7 +26,7 @@ import java.util.*;
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // [/ignore]
 
-class Vec3f
+class Vec3f implements Serializable
 {
     public float x, y, z;
 
@@ -64,7 +64,7 @@ class ISect
     public ISect(float t0, float t1) { this.t0 = t0; this.t1 = t1; }
 }
 
-class Sphere
+class Sphere implements Serializable
 {
     public Vec3f center;                           /// position of the sphere
     public float radius, radius2;                  /// sphere radius and radius^2
@@ -296,8 +296,9 @@ class RayTracer
         return (float)st.nval;
     }
 
-    static void readScene(String filename, List<Sphere> spheres) throws IOException
+    static List<Sphere> readScene(String filename) throws IOException
     {
+        List<Sphere> spheres = new ArrayList<Sphere>();
         Reader reader = new BufferedReader(new FileReader(filename));
         StreamTokenizer st = new StreamTokenizer(reader);
         st.commentChar('#');
@@ -324,17 +325,18 @@ class RayTracer
         }
         if (st.ttype != StreamTokenizer.TT_EOF)
 	        throw new IOException(st.toString());
+        return spheres;
     }
 
-    public static void main(String args[]) throws IOException {
-        if (args.length != 2) {
-            System.out.println("Usage: java RayTracer [input.scene] [output.ppm]");
-            System.exit(1);
-            return;
-        }
-
-        List<Sphere> spheres = new ArrayList<Sphere>();
-        readScene(args[0], spheres);
-        render(args[1], spheres);
-    }
+    // public static void main(String args[]) throws IOException {
+    //     if (args.length != 2) {
+    //         System.out.println("Usage: java RayTracer [input.scene] [output.ppm]");
+    //         System.exit(1);
+    //         return;
+    //     }
+    //
+    //     List<Sphere> spheres = new ArrayList<Sphere>();
+    //     readScene(args[0], spheres);
+    //     render(args[1], spheres);
+    // }
 }
