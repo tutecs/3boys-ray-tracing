@@ -1,5 +1,5 @@
 // 3boys client for raytracer
-// Ethan Duryea, Joshua Weller, John Zamites
+// Ethan Duryea, Joshua Weller, John Zamites, Elliot Spicer
 // Version 1.0
 
 import java.net.*;
