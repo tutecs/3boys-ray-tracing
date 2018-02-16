@@ -111,12 +111,7 @@ public class RayTracerClient
     }
     import java.util.List;
 
-    public static void isReady(int[][] xs, InetAddress[] addresses, List<Sphere> spheres, ReceiveMessages messageGetter){         
-        boolean allSent;
-        // keeps it false until 
-        //keep array list of addresses we have sent to and getReady those addreses with the ones we've already sent
-        // something new in Getdata
-        //when it is full it becomes true
+    public static void isReady(int[][] xs, InetAddress[] addresses, List<Sphere> spheres, ReceiveMessages messageGetter){
         for(InetAddress address : addresses){
             sendSpheres(address, spheres);
         }
