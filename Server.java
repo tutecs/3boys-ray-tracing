@@ -8,68 +8,145 @@ import java.util.*;
 
 public class Server
 {
+	InetAddress address = null;
+	int outPort = null;
 	public static void getSceneAndRender(int listenPort)
 	{
+		DatagramSocket socket = new DatagramSocket(listenPort);
 		boolean completed = false;
-		try
+		List<Sphere> spheres = getSpheres(listenPort);
+
+		String ready = "We really out here, like, really out here";
+		sendString(ready, outPort, socket);
+		int xStart = null;
+		int xStop = null;
+		while(!gotRender)
 		{
-			while(!completed)
+			String xs = receiveString(socket);
+			String[] xData = xs.split(":");
+			if(xData[0].equals("xrange"))
 			{
-				DatagramSocket socket = new DatagramSocket(listenPort);
-				byte[] sphereData = new byte[1024];
-				byte[] xData = new byte[1024];
-
-				DatagramPacket packet = new DatagramPacket(sphereData, sphereData.length);
-				socket.receive(packet);
-				byte[] data = packet.getData();
-				ByteArrayInputStream in = new ByteArrayInputStream(data);
-				ObjectInputStream is = new ObjectInputStream(in);
-				List<Sphere> spheres = new ArrayList<Sphere>();
-				int[] xs = new int[2];
-				try
-				{
-					spheres = (List<Sphere>) is.readObject();
-				}
-				catch (ClassNotFoundException cne) {
-					cne.printStackTrace();
-					System.exit(1);
-				}
-				DatagramPacket workPacket = new DatagramPacket(xData, xData.length);
-				String renderRequest = new String(workPacket.getData(), 0, workPacket.getLength());
-				String[] splits = renderRequest.split(" ");
-				if(splits[0].equals("xrange") && splits.length == 3) {
-					int xStart = Integer.parseInt(splits[1]);
-					int xStop = Integer.parseInt(splits[2]);
-
-					Vec3f[][] screen = RayTracer.render(spheres, xStart, xStop);
-
-					InetAddress address = packet.getAddress();
-					int port = packet.getPort();
-					ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-					ObjectOutputStream os = new ObjectOutputStream(outputStream);
-					os.writeObject(screen);
-					byte[] screenData = outputStream.toByteArray();
-					DatagramPacket sendScreen = new DatagramPacket(screenData, screenData.length, address, port);
-					socket.send(sendScreen);
-					completed = true;
-					socket.close();
-				}
+				xStart = xData[1];
+				xStop = xData[2];
+				gotRender = true;
 			}
 		}
-		catch (SocketException e)
+		render(spheres, xStart, xStop, socket, address, outPort);
+		socket.close();
+	}
+	public static String receiveString(DatagramSocket socket)
+	{
+		byte[] buf = new byte[256];
+		DatagramPacket packet = new DatagramPacket(buf, buf.length);
+		socket.receive(packet);
+		String message = new String(packet.getData(), 0, packet.getLength());
+		return message;
+	}
+	public static void sendString(String send, int port, DatagramSocket socket)
+	{
+		try
 		{
-			e.printStackTrace();
-		}
-		catch (IOException i)
+			byte[] data = send.getBytes();
+			DatagramPacket packet = new DatagramPacket(data, data.length, address, port);
+			socket.send(packet);
+		} catch (UnknownHostException e) {
+        e.printStackTrace();
+        } catch (SocketException e) {
+        e.printStackTrace();
+        } catch (IOException e) {
+        e.printStackTrace();
+        }
+	}
+	public static List<Sphere> getSpheres(DatagramSocket socket)
+	{
+		List<Sphere> spheres = new ArrayList<Sphere>();
+		byte[] buf = new byte[256];
+		try
 		{
-			i.printStackTrace();
+			DatagramPacket packet = new DatagramPacket(buf, buf.length);
+			socket.receive(packet);
+			address = socket.getAddress();
+			String data = new String(packet.getData(), 0, packet.getLength());
+			String[] dataArray = data.split(":");
+			int l = Integer.parseInt(dataArray[0]);
+			int d = Integer.parseInt(dataArray[1]);
+			String sphereData = dataArray[2];
+			spheres.add(makeSphere(sphereData));
+			count = 1;
+			while(count < l)
+			{
+				byte[] buf = new byte[256];
+				DatagramPacket packet = new DatagramPacket(buf, buf.length);
+				socket.receive(packet);
+				String data = new String(packet.getData(), 0, packet.getLength());
+				String[] dataArray = data.split(":");
+				int currentL = Integer.parseInt(dataArray[0]);
+				int currentD = Integer.parseInt(dataArray[1]);
+				String sphereData = dataArray[2];
+				if(currentD == d)
+				{
+					spheres.add(makeSphere(sphereData));
+					++count;
+				}
+				else
+				{
+					d = currentD;
+					l = currentL;
+					spheres = new ArrayList<Sphere>();
+					spheres.add(makeSphere(sphereData));
+				}
+				address = socket.getAddress();
+				outPort = socket.getPort();
+			}
+			return spheres;
+		} catch (UnknownHostException e) {
+        e.printStackTrace();
+        } catch (SocketException e) {
+        e.printStackTrace();
+        } catch (IOException e) {
+        e.printStackTrace();
+        }
+		return null;
+	}
+	public static Sphere makeSphere(String dataStr)
+	{
+		String[] data 	= dataStr.split("\\s+");
+		String type 	= data[0];
+		Sphere sphere 	= null;
+		if(type.equals("light"))
+		{
+			float center.x 	= Float.parseFloat(data[1]);
+			float center.y 	= Float.parseFloat(data[2]);
+			float center.z 	= Float.parseFloat(data[3]);
+			float color.x	= Float.parseFloat(data[4]);
+			float color.y	= Float.parseFloat(data[5]);
+			float color.z	= Float.parseFloat(data[6]);
+			Vec3f center 	= new Vec3f(center.x,center.y,center.z);
+			Vec3f color 	= new Vec3f(color.x,color.y,color.z);
+			Sphere sphere = Sphere.Light(center, color);
 		}
+		else
+		{
+			float center.x 	= Float.parseFloat(data[1]);
+			float center.y 	= Float.parseFloat(data[2]);
+			float center.z 	= Float.parseFloat(data[3]);
+			float radius 	= Float.parseFloat(data[4]);
+			float color.x	= Float.parseFloat(data[5]);
+			float color.y	= Float.parseFloat(data[6]);
+			float color.z	= Float.parseFloat(data[7]);
+			float transparency	= Float.parseFloat(data[8]);
+			float reflection	= Float.parseFloat(data[9]);
+			Vec3f center 	= new Vec3f(center.x,center.y,center.z);
+			Vec3f color 	= new Vec3f(color.x,color.y,color.z);
+			Sphere sphere 	= new Sphere(center, radius, color, reflection, transparency);
+		}
+		return sphere;
 	}
 	public static void main(String args[]) throws IOException
 	{
 		if(args.length != 1)
 		{
-			System.out.println("Usage: java RayTracerServer [port#]");
+			System.out.println("Usage: java Server [port#]");
 			System.exit(1);
 			return;
 		}
