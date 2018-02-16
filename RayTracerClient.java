@@ -6,6 +6,7 @@ import java.net.*;
 import java.io.*;
 import java.util.*;
 
+
 public class RayTracerClient
 {
     private static int outPort = 3333;
@@ -30,8 +31,6 @@ public class RayTracerClient
         // Get sphere data from scene file
         List<Sphere> spheres = RayTracer.readScene(sceneFile);
         // Send sphere data to each node
-
-
         int[][] xs = divideWork(addresses.length);
 		ReceiveMessages messageGetter = new ReceiveMessages(inPort);
 		ReceiveData getter = new ReceiveData(pxPort, "PixelGetter", height, width);
@@ -77,6 +76,10 @@ public class RayTracerClient
         }
         return addresses.toArray(new InetAddress[0]);
     }
+
+
+
+
 	public static void sendSpheres(InetAddress address, Sphere[] spheres) {
 		  Random rand = new Random();
 		  int d = rand.nextInt(100);
@@ -111,6 +114,83 @@ public class RayTracerClient
         } catch (IOException e) {
         e.printStackTrace();
         }
+    }
+    import java.util.List;
+
+    public static void isReady(int[][] xs, InetAddress[] addresses, List<Sphere> spheres, ReceiveMessages messageGetter){
+        for(InetAddress address : addresses){
+            sendSpheres(address, spheres);
+        }
+        int i = 0;
+
+        while(i < addresses.length){
+            List<String[]> AddressPort = messageGetter.getReady();
+            //brings in the new addresses.
+
+            for(String[] address : AddressPort){
+                InetAddress addr2 = InetAddress.getByName(address[0]);
+                sendRender(addr2, xs[i]);
+                ++i;
+            }
+            for(String stuff: addressPort){
+                DatagramSocket socket = new DatagramSocket(stuff[1]);
+                byte[] buf = new byte [2048];
+                DatagramPacket packet = new DatagramPacket(buf, buf.length);
+            }
+        }
+    }
+
+    public static Vec3f[][] receive(InetAddress[] addresses, int[][] xs)
+    {
+        ArrayList<InetAddress> addressList = new ArrayList<InetAddress>(Arrays.asList(addresses));
+        boolean receivedAll = false;;
+        Vec3f[][] screen = new Vec3f[width][height];
+        try
+        {
+            DatagramSocket socket = new DatagramSocket(inPort);
+            while(!receivedAll)
+            {
+                byte[] screenData = new byte[1024];
+                DatagramPacket packet = new DatagramPacket(screenData, screenData.length);
+                socket.receive(packet);
+                ByteArrayInputStream in = new ByteArrayInputStream(screenData);
+                ObjectInputStream is = new ObjectInputStream(in);
+                Vec3f[][] partScreen = null;
+                try
+                {
+                    partScreen = (Vec3f[][]) is.readObject();
+                }
+                catch (ClassNotFoundException cn)
+                {
+                    cn.printStackTrace();
+                    System.exit(1);
+                }
+                String inAddress = packet.getAddress().getHostAddress();
+                int addressIDX = addressList.indexOf(inAddress);
+                if(addressIDX >= 0)
+                {
+                    int xStart = xs[addressIDX][0], xStop = xs[addressIDX][1];
+                    for (int y = 0; y < height; ++y)
+                    {
+                        for (int x = xStart; x < xStop; ++x)
+                        {
+                            screen[x][y] = partScreen[x][y];
+                        }
+                    }
+                    addressList.remove(addressIDX);
+                }
+                if(addressList.isEmpty()) { receivedAll = true; }
+            }
+            socket.close();
+        }
+        catch (UnknownHostException e) {
+        e.printStackTrace();
+        } catch (SocketException e) {
+        e.printStackTrace();
+        } catch (IOException e) {
+        e.printStackTrace();
+        }
+        return screen;
     }
     public static int[][] divideWork(int nNodes)
     {
@@ -155,9 +235,9 @@ public class RayTracerClient
             xs[nNodes-1] = nodeXs;
         }
         return xs;
+    }
 	}
 }
-
 class ReceiveData implements Runnable
 {
 	private Thread t;
