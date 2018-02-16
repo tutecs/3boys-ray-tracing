@@ -18,20 +18,29 @@ public class Server
 
 		String ready = "We really out here.";
 		sendString(ready, outPort, socket);
-		int xStart = null;
-		int xStop = null;
-		while(!gotRender)
+		boolean running = true;
+		while(running)
 		{
-			String xs = receiveString(socket);
-			String[] xData = xs.split(":");
+			int xStart = null;
+			int xStop = null;
+			String message = receiveString(socket);
+			String[] xData = message.split(":");
+			if(xData[0].equals("End"))
+			{
+				running = false;
+				break;
+			}
 			if(xData[0].equals("xrange"))
 			{
-				xStart = xData[1];
-				xStop = xData[2];
-				gotRender = true;
+				int[] xs = new int[xData.length-1];
+				for(int i = 1; i < xData.length; ++i)
+				{
+					xs[i-1] = xData[i];
+				}
+				render(spheres, xs, socket, address, outPort);
 			}
+			sendString("Done", outport, socket);
 		}
-		render(spheres, xStart, xStop, socket, address, outPort);
 		socket.close();
 	}
 	public static String receiveString(DatagramSocket socket)

@@ -33,7 +33,7 @@ public class RayTracerClient
 
 
         int[][] xs = divideWork(addresses.length);
-		ReceiveMessages messageGetter = new ReceiveMessages(listenPort);
+		ReceiveMessages messageGetter = new ReceiveMessages(inPort);
 		ReceiveData getter = new ReceiveData(pxPort, "PixelGetter", height, width);
 		getter.start();
 		isReady(xs, addresses, spheres, messageGetter);
@@ -42,12 +42,15 @@ public class RayTracerClient
 		while(nCols < screen.length)
 		{
 			Vec3f[][] receivedScreen = packetGetter.receivedCol();
-			for(int i = 0; i < receivedScreen.legnth; ++i)
+			synchronized(receivedScreen)
 			{
-				if(receivedScreen[i][0] != null && screen[i][0] != null)
+				for(int i = 0; i < receivedScreen.legnth; ++i)
 				{
-					screen[i] = receivedScreen[i];
-					++nCols;
+					if(receivedScreen[i][0] != null && screen[i][0] != null)
+					{
+						screen[i] = receivedScreen[i];
+						++nCols;
+					}
 				}
 			}
 		}
@@ -89,12 +92,15 @@ public class RayTracerClient
 	}
     public static void sendRender(InetAddress address, int[] xs)
     {
-		int xStart = xs[0];
-		int xStop = xs[1];
 		try
 		{
 			DatagramSocket socket = new DatagramSocket();
-            byte[] data = String.format("xrange:%d:%d", xStart, xStop).getBytes();
+			String xString = "xrange";
+			for(int i = 0; i < xs.length; ++i;)
+			{
+				xString = String.format("%s:%d", xString, xs[i]);
+			}
+            byte[] data = xString.getBytes();
             DatagramPacket sendPacket = new DatagramPacket(data, data.length, address, outPort);
             socket.send(sendPacket);
             socket.close();
@@ -108,7 +114,7 @@ public class RayTracerClient
     }
     public static int[][] divideWork(int nNodes)
     {
-        int[][] xs = new int[nNodes][2];
+        int[][] xs = new int[nNodes][stepSize];
         double dNodes = (double) nNodes;
         double dstepSize = width/nNodes;
         boolean even = true;
@@ -120,17 +126,33 @@ public class RayTracerClient
         int current = 0;
         for(int i = 0; i < nNodes-1; ++i)
         {
-            xs[i][0] = current;
-            xs[i][1] = current + stepSize;
+			int[] nodeXs = new int[stepSize];
+			for(int j = 0; j < stepSize; ++j)
+			{
+				nodeXs[j] = current
+				++current;
+			}
+			xs[i] = nodeXs
         }
-        xs[nNodes-1][0] = current;
         if(even)
         {
-            xs[nNodes-1][1] = current + stepSize;
+			int[] nodeXs = new int[stepSize];
+			for(int j = 0; j < stepSize; ++j)
+			{
+				nodeXs[j] = current
+				++current;
+			}
+            xs[nNodes-1] = nodeXs;
         }
         else
         {
-            xs[nNodes-1][1] = current + stepSize + 1;
+			int[] nodeXs = new int[stepSize+1];
+			for(int j = 0; j < stepSize+1; ++j)
+			{
+				nodeXs[j] = current
+				++current;
+			}
+            xs[nNodes-1] = nodeXs;
         }
         return xs;
 	}
@@ -143,6 +165,7 @@ class ReceiveData implements Runnable
 	private int listeningPort;
 	private int height;
 	private int width;
+	private List<Vec3f[]> color = Collections.synchronizedList(new ArrayList<Vec3f[]>());
 	private Vec3f[][] color;
 
 	public ReceiveData(int port, String name, int height, int width)
@@ -204,12 +227,12 @@ class ReceiveMessages implements Runnable
 {
 	private Thread t;
 	private String threadName;
-	private ArrayList<String> messages;
+	private List<String> messages;
 	private int port;
 	public ReceiveMessages(int listenPort)
 	{
 		port = listenPort;
-		messages = new ArrayList<String>();
+		messages = Collections.synchronizedList(new ArrayList<String>());
 	}
 	public void run()
 	{
@@ -218,15 +241,17 @@ class ReceiveMessages implements Runnable
 			DatagramSocket socket = new DatagramSocket(port);
 			while(true)
 			{
-				byte[] receiveData = new byte[1024];
-				DatagramPacket receivePacket = new DatagramPacket(receiveData,receiveData.length);
-				socket.receive(receivePacket);
-				String data = new String(receivePacket.getData(), 0, receivePacket.length);
-				String address = receivePacket.getAddress().getHostAddress();
-				int fromPort = receivePacket.getPort();
-				String message = String.format("%s:%s:%d", data, address, fromPort);
-				messages.add(message)
-
+				synchronized (messages)
+				{
+					byte[] receiveData = new byte[1024];
+					DatagramPacket receivePacket = new DatagramPacket(receiveData,receiveData.length);
+					socket.receive(receivePacket);
+					String data = new String(receivePacket.getData(), 0, receivePacket.length);
+					String address = receivePacket.getAddress().getHostAddress();
+					int fromPort = receivePacket.getPort();
+					String message = String.format("%s:%s:%d", data, address, fromPort);
+					messages.add(message);
+				}
 			}
 			socket.close();
 		}catch (InterruptedException e) {
@@ -235,19 +260,20 @@ class ReceiveMessages implements Runnable
         	e.printStackTrace();
         }
 	}
-	public String[][] getReady()
+	public ArrayList<String[]> getReady()
 	{
-		String[][] addresses = new String[0][2];
-		i = 0;
-		for(String message : messages)
+		ArrayList<String[]> addresses = new ArrayList<String[]>();
+		synchronized(messages)
 		{
-			String[] messageData = messages.split(":");
-			if(messageData[0] == "We really out here.")
+			for(String message : messages)
 			{
-				String[] addrPort = {messageData[1], messageData[2]};
-				addresses = Array.copyOf(addresses, addresses.length + 1);
-				addresses[i] = addrPort;
-				++i;
+				String[] messageData = messages.split(":");
+				if(messageData[0] == "We really out here.")
+				{
+					String[] addrPort = {messageData[1], messageData[2]};
+					addresses.add(addrPort);
+					messages.remove(message);
+				}
 			}
 		}
 		return addresses;

@@ -260,7 +260,7 @@ class RayTracer
 	// Main rendering function. We compute a camera ray for each pixel of the image
 	// trace it and return a color. If the ray hits a sphere, we return the color of the
 	// sphere at the intersection point, else we return the background color.
-	public static void render(List<Sphere> spheres, int xStart, int xStop, DatagramSocket socket, InetAddress address, int port)
+	public static void render(List<Sphere> spheres, int[] xs, DatagramSocket socket, InetAddress address, int port)
 	{
 		try
 		{
@@ -274,7 +274,7 @@ class RayTracer
 			float aspectratio = (float)width / (float)height;
 			float angle = (float)Math.tan((float)Math.PI * 0.5f * fov / 180.0f);
 			// Trace rays
-			for (int x = xStart; x < xStop; ++x) {
+			for (Integer x : xs) {
 				Vec3f[] currentCol = new Vec3f[height];
 				for (int y = 0; y < height; ++y) {
 					//System.out.println(String.format("Pixel: %d, %d", x, y));
