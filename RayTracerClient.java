@@ -31,8 +31,6 @@ public class RayTracerClient
         // Get sphere data from scene file
         List<Sphere> spheres = RayTracer.readScene(sceneFile);
         // Send sphere data to each node
-
-
         int[][] xs = divideWork(addresses.length);
 		ReceiveMessages messageGetter = new ReceiveMessages(listenPort);
 		ReceiveData getter = new ReceiveData(pxPort, "PixelGetter", height, width);
@@ -79,7 +77,6 @@ public class RayTracerClient
 
   
 
-=======
 	public static void sendSpheres(InetAddress address, Sphere[] spheres) {
 		  Random rand = new Random();
 		  int d = rand.nextInt(100);
@@ -112,56 +109,44 @@ public class RayTracerClient
         e.printStackTrace();
         }
     }
-<<<<<<< HEAD
+    import java.util.List;
 
-    public static void isReady(int[][] xs, InetAddress[] addresses, List<Sphere> spheres, ReceiveMessages messageGetter){
-        //receive things send out all the spheres call send shperes in while loop 
-        //after amount of time t we will resend the data. port is second 
-
-
+    public static void isReady(int[][] xs, InetAddress[] addresses, List<Sphere> spheres, ReceiveMessages messageGetter){         
+        boolean allSent;
+        // keeps it false until 
+        //keep array list of addresses we have sent to and getReady those addreses with the ones we've already sent
+        // something new in Getdata
+        //when it is full it becomes true
         for(InetAddress address : addresses){
             sendSpheres(address, spheres);
-
         }
-
-        String[][] AddressPort = messageGetter.getReady();
         int i = 0;
 
-        for(String[] address : AddressPort){
-            InetAddress addr2 = InetAddress.getByName(address[0])
+        while(i < addresses.length){
+            List<String[]> AddressPort = messageGetter.getReady();                
+            //brings in the new addresses.
 
-            sendRender(addr2, xs[i])
-            ++i;
-
+            for(String[] address : AddressPort){
+                InetAddress addr2 = InetAddress.getByName(address[0]);
+                sendRender(addr2, xs[i]);
+                ++i;
+            }
+            for(String stuff: addressPort){
+                DatagramSocket socket = new DatagramSocket(stuff[1]);
+                byte[] buf = new byte [2048];
+                DatagramPacket packet = new DatagramPacket(buf, buf.length);            
+            }
         }
-
-        for(String stuff: addressPort){
-            DatagramSocket socket = new DatagramSocket(stuff[1]);
-            byte[] buf = new byte [2048];
-            DatagramPacket packet = new DatagramPacket(buf, buf.length);
-            
-
-        }        
-
-
-        try
-        {
-
-        }
-
-
     }
+
     public static Vec3f[][] receive(InetAddress[] addresses, int[][] xs)
     {
         ArrayList<InetAddress> addressList = new ArrayList<InetAddress>(Arrays.asList(addresses));
         boolean receivedAll = false;;
-
         Vec3f[][] screen = new Vec3f[width][height];
-
         try
         {
             DatagramSocket socket = new DatagramSocket(inPort);
-
             while(!receivedAll)
             {
                 byte[] screenData = new byte[1024];
@@ -169,9 +154,7 @@ public class RayTracerClient
                 socket.receive(packet);
                 ByteArrayInputStream in = new ByteArrayInputStream(screenData);
                 ObjectInputStream is = new ObjectInputStream(in);
-
                 Vec3f[][] partScreen = null;
-
                 try
                 {
                     partScreen = (Vec3f[][]) is.readObject();
@@ -186,7 +169,6 @@ public class RayTracerClient
                 if(addressIDX >= 0)
                 {
                     int xStart = xs[addressIDX][0], xStop = xs[addressIDX][1];
-
                     for (int y = 0; y < height; ++y)
                     {
                         for (int x = xStart; x < xStop; ++x)
@@ -196,7 +178,6 @@ public class RayTracerClient
                     }
                     addressList.remove(addressIDX);
                 }
-
                 if(addressList.isEmpty()) { receivedAll = true; }
             }
             socket.close();
@@ -211,7 +192,6 @@ public class RayTracerClient
         return screen;
     }
     public static int[][] divideWork(int nNodes)
-
     {
         int[][] xs = new int[nNodes][2];
         double dNodes = (double) nNodes;
@@ -238,13 +218,9 @@ public class RayTracerClient
             xs[nNodes-1][1] = current + stepSize + 1;
         }
         return xs;
-    }
-    
-    
-
+    }    
 	}
 }
-
 class ReceiveData implements Runnable
 {
 	private Thread t;
@@ -335,7 +311,6 @@ class ReceiveMessages implements Runnable
 				int fromPort = receivePacket.getPort();
 				String message = String.format("%s:%s:%d", data, address, fromPort);
 				messages.add(message)
-
 			}
 			socket.close();
 		}catch (InterruptedException e) {
@@ -369,5 +344,4 @@ class ReceiveMessages implements Runnable
 			t.start();
 		}
 	}
-
 }
