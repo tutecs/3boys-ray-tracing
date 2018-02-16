@@ -16,7 +16,7 @@ public class Server
 		boolean completed = false;
 		List<Sphere> spheres = getSpheres(listenPort);
 
-		String ready = "We really out here, like, really out here";
+		String ready = "We really out here.";
 		sendString(ready, outPort, socket);
 		int xStart = null;
 		int xStop = null;
