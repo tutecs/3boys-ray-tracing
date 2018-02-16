@@ -6,6 +6,7 @@ import java.net.*;
 import java.io.*;
 import java.util.*;
 
+
 public class RayTracerClient
 {
     private static int outPort = 3333;
@@ -59,12 +60,45 @@ public class RayTracerClient
         }
         return addresses.toArray(new InetAddress[0]);
     }
-    public static void sendSpheres(InetAddress[] addresses, List<Sphere> spheres)
+// l is length and d random outside the loop 
+
+      public String sendSpheres(InetAddress addresses[], Sphere[] spheres) {
+            Random rand = new Random();
+            int d = rand.nextInt(100);
+            for(InetAddress address : addresses){        
+                for(int i = 0; i < spheres.length; i++;){                
+                    String sphereStr;
+                    DatagramSocket socket = new DatagramSocket();
+                    sphereStr = String.format("%d, %d, %s" l, d, spheres[i].toString);
+                    buf = sphereStr.getBytes();
+                    DatagramPacket packet = new DatagramPacket(buf, buf.length, address, outport);
+                    socket.send(packet);
+                    packet = new DataGramPacket(buf, buf.length)
+                    socket.receive(packet);
+                    String received = new String(packet.getData(), 0, packet.getLength());
+                    return received;
+                }   
+            }
+
+
+
+      }
+
+   /* public static void sendSpheres(InetAddress[] addresses, List<Sphere> spheres)
     {
+        //spherePacket(Sphere sphere, int i, int d)  http://www.coderpanda.com/java-socket-programming-transferring-java-object-through-socket-using-udp/
         for(InetAddress address : addresses)
         {
+            
+
+            }
+
             try
-            {
+            { 
+                
+
+
+
                 DatagramSocket socket = new DatagramSocket();
                 ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
                 ObjectOutputStream os = new ObjectOutputStream(outputStream);
@@ -80,8 +114,14 @@ public class RayTracerClient
             } catch (IOException e) {
             e.printStackTrace();
             }
+
+            
         }
     }
+
+*/
+
+
     public static void sendRender(InetAddress address, int[] xs)
     {
 		int xStart = xs[0];
@@ -101,10 +141,48 @@ public class RayTracerClient
         e.printStackTrace();
         }
     }
+
+    public static void isReady(int[][] xs, InetAddress[] addresses, List<Sphere> spheres, ReceiveMessages messageGetter){
+        //receive things send out all the spheres call send shperes in while loop 
+        //after amount of time t we will resend the data. port is second 
+
+
+        for(InetAddress address : addresses){
+            sendSpheres(address, spheres);
+
+        }
+
+        String[][] AddressPort = messageGetter.getReady();
+        int i = 0;
+
+        for(String[] address : AddressPort){
+            InetAddress addr2 = InetAddress.getByName(address[0])
+
+            sendRender(addr2, xs[i])
+            ++i;
+
+        }
+
+        for(String stuff: addressPort){
+            DatagramSocket socket = new DatagramSocket(stuff[1]);
+            byte[] buf = new byte [2048];
+            DatagramPacket packet = new DatagramPacket(buf, buf.length);
+            
+
+        }        
+
+
+        try
+        {
+
+        }
+
+
+    }
     public static Vec3f[][] receive(InetAddress[] addresses, int[][] xs)
     {
         ArrayList<InetAddress> addressList = new ArrayList<InetAddress>(Arrays.asList(addresses));
-        boolean receivedAll = false;
+        boolean receivedAll = false;;
 
         Vec3f[][] screen = new Vec3f[width][height];
 
@@ -160,7 +238,7 @@ public class RayTracerClient
         }
         return screen;
     }
-    public static int[][] divideWork(int nNodes)
+    /* public static int[][] divideWork(int nNodes)
     {
         int[][] xs = new int[nNodes][2];
         double dNodes = (double) nNodes;
@@ -188,4 +266,6 @@ public class RayTracerClient
         }
         return xs;
     }
+    */
+    
 }
