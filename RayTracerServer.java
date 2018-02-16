@@ -307,7 +307,7 @@ class RayTracer
 
 	static String makeColString(Vec3f[] col)
 	{
-		String colString = ""
+		String colString = "";
 		for(int i = 0; i < col.length - 1; ++i)
 		{
 			colString = colString + col[i].toString() + ":";
