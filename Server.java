@@ -8,47 +8,57 @@ import java.util.*;
 
 public class Server
 {
-	InetAddress address = null;
-	int outPort = null;
-	public static void getSceneAndRender(int listenPort)
+	static InetAddress address;
+	static int listenPort;
+	static int outPort;
+	public static void getSceneAndRender()
 	{
-		DatagramSocket socket = new DatagramSocket(listenPort);
-		boolean completed = false;
-		List<Sphere> spheres = getSpheres(listenPort);
-
-		String ready = "We really out here.";
-		sendString(ready, outPort, socket);
-		boolean running = true;
-		while(running)
+		try
 		{
-			int xStart = null;
-			int xStop = null;
-			String message = receiveString(socket);
-			String[] xData = message.split(":");
-			if(xData[0].equals("End"))
+			DatagramSocket socket = new DatagramSocket(listenPort);
+			boolean completed = false;
+			List<Sphere> spheres = getSpheres(socket);
+
+			String ready = "We really out here.";
+			sendString(ready, outPort, socket);
+			boolean running = true;
+			while(running)
 			{
-				running = false;
-				break;
-			}
-			if(xData[0].equals("xrange"))
-			{
-				int[] xs = new int[xData.length-1];
-				for(int i = 1; i < xData.length; ++i)
+				String message = receiveString(socket);
+				String[] xData = message.split(":");
+				if(xData[0].equals("End"))
 				{
-					xs[i-1] = xData[i];
+					running = false;
+					break;
 				}
-				render(spheres, xs, socket, address, outPort);
+				if(xData[0].equals("xrange"))
+				{
+					int[] xs = new int[xData.length-1];
+					for(int i = 1; i < xData.length; ++i)
+					{
+						xs[i-1] = Integer.parseInt(xData[i]);
+					}
+					RayTracer	.render(spheres, xs, socket, address, outPort);
+				}
+				sendString("Done", outPort, socket);
 			}
-			sendString("Done", outport, socket);
-		}
-		socket.close();
+			socket.close();
+		} catch (SocketException e) {
+        	e.printStackTrace();
+        }
 	}
 	public static String receiveString(DatagramSocket socket)
 	{
+		String message = null;
 		byte[] buf = new byte[256];
-		DatagramPacket packet = new DatagramPacket(buf, buf.length);
-		socket.receive(packet);
-		String message = new String(packet.getData(), 0, packet.getLength());
+		try
+		{
+			DatagramPacket packet = new DatagramPacket(buf, buf.length);
+			socket.receive(packet);
+			message = new String(packet.getData(), 0, packet.getLength());
+		} catch (IOException e) {
+        	e.printStackTrace();
+        }
 		return message;
 	}
 	public static void sendString(String send, int port, DatagramSocket socket)
@@ -59,11 +69,11 @@ public class Server
 			DatagramPacket packet = new DatagramPacket(data, data.length, address, port);
 			socket.send(packet);
 		} catch (UnknownHostException e) {
-        e.printStackTrace();
+        	e.printStackTrace();
         } catch (SocketException e) {
-        e.printStackTrace();
+        	e.printStackTrace();
         } catch (IOException e) {
-        e.printStackTrace();
+        	e.printStackTrace();
         }
 	}
 	public static List<Sphere> getSpheres(DatagramSocket socket)
@@ -74,24 +84,24 @@ public class Server
 		{
 			DatagramPacket packet = new DatagramPacket(buf, buf.length);
 			socket.receive(packet);
-			address = socket.getAddress();
+			InetAddress address = packet.getAddress();
 			String data = new String(packet.getData(), 0, packet.getLength());
 			String[] dataArray = data.split(":");
 			int l = Integer.parseInt(dataArray[0]);
 			int d = Integer.parseInt(dataArray[1]);
 			String sphereData = dataArray[2];
 			spheres.add(makeSphere(sphereData));
-			count = 1;
+			int count = 1;
 			while(count < l)
 			{
-				byte[] buf = new byte[256];
-				DatagramPacket packet = new DatagramPacket(buf, buf.length);
+				buf = new byte[256];
+				packet = new DatagramPacket(buf, buf.length);
 				socket.receive(packet);
-				String data = new String(packet.getData(), 0, packet.getLength());
-				String[] dataArray = data.split(":");
+				data = new String(packet.getData(), 0, packet.getLength());
+				dataArray = data.split(":");
 				int currentL = Integer.parseInt(dataArray[0]);
 				int currentD = Integer.parseInt(dataArray[1]);
-				String sphereData = dataArray[2];
+				sphereData = dataArray[2];
 				if(currentD == d)
 				{
 					spheres.add(makeSphere(sphereData));
@@ -104,16 +114,17 @@ public class Server
 					spheres = new ArrayList<Sphere>();
 					spheres.add(makeSphere(sphereData));
 				}
-				address = socket.getAddress();
-				outPort = socket.getPort();
+				address = packet.getAddress();
+				outPort = packet.getPort();
 			}
+
 			return spheres;
 		} catch (UnknownHostException e) {
-        e.printStackTrace();
+        	e.printStackTrace();
         } catch (SocketException e) {
-        e.printStackTrace();
+        	e.printStackTrace();
         } catch (IOException e) {
-        e.printStackTrace();
+        	e.printStackTrace();
         }
 		return null;
 	}
@@ -124,30 +135,30 @@ public class Server
 		Sphere sphere 	= null;
 		if(type.equals("light"))
 		{
-			float center.x 	= Float.parseFloat(data[1]);
-			float center.y 	= Float.parseFloat(data[2]);
-			float center.z 	= Float.parseFloat(data[3]);
-			float color.x	= Float.parseFloat(data[4]);
-			float color.y	= Float.parseFloat(data[5]);
-			float color.z	= Float.parseFloat(data[6]);
-			Vec3f center 	= new Vec3f(center.x,center.y,center.z);
-			Vec3f color 	= new Vec3f(color.x,color.y,color.z);
-			Sphere sphere = Sphere.Light(center, color);
+			float centerx 	= Float.parseFloat(data[1]);
+			float centery 	= Float.parseFloat(data[2]);
+			float centerz 	= Float.parseFloat(data[3]);
+			float colorx	= Float.parseFloat(data[4]);
+			float colory	= Float.parseFloat(data[5]);
+			float colorz	= Float.parseFloat(data[6]);
+			Vec3f center 	= new Vec3f(centerx,centery,centerz);
+			Vec3f color 	= new Vec3f(colorx,colory,colorz);
+			sphere = Sphere.Light(center, color);
 		}
 		else
 		{
-			float center.x 	= Float.parseFloat(data[1]);
-			float center.y 	= Float.parseFloat(data[2]);
-			float center.z 	= Float.parseFloat(data[3]);
+			float centerx 	= Float.parseFloat(data[1]);
+			float centery 	= Float.parseFloat(data[2]);
+			float centerz 	= Float.parseFloat(data[3]);
 			float radius 	= Float.parseFloat(data[4]);
-			float color.x	= Float.parseFloat(data[5]);
-			float color.y	= Float.parseFloat(data[6]);
-			float color.z	= Float.parseFloat(data[7]);
+			float colorx	= Float.parseFloat(data[5]);
+			float colory	= Float.parseFloat(data[6]);
+			float colorz	= Float.parseFloat(data[7]);
 			float transparency	= Float.parseFloat(data[8]);
 			float reflection	= Float.parseFloat(data[9]);
-			Vec3f center 	= new Vec3f(center.x,center.y,center.z);
-			Vec3f color 	= new Vec3f(color.x,color.y,color.z);
-			Sphere sphere 	= new Sphere(center, radius, color, reflection, transparency);
+			Vec3f center 	= new Vec3f(centerx,centery,centerz);
+			Vec3f color 	= new Vec3f(colorx,colory,colorz);
+			sphere 	= new Sphere(center, radius, color, reflection, transparency);
 		}
 		return sphere;
 	}
@@ -155,14 +166,14 @@ public class Server
 	{
 		if(args.length != 1)
 		{
-			System.out.println("Usage: java Server [port#]");
+			System.out.println("Usage: java Server [inPort#]");
 			System.exit(1);
 			return;
 		}
 		try
 		{
-			int port = Integer.parseInt(args[0]);
-			getSceneAndRender(port);
+			listenPort = Integer.parseInt(args[0]);
+			getSceneAndRender();
 		}
 		catch (NumberFormatException nfe)
 		{
