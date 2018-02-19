@@ -38,7 +38,7 @@ public class Server
 					{
 						xs[i-1] = Integer.parseInt(xData[i]);
 					}
-					RayTracer	.render(spheres, xs, socket, address, outPort);
+					RayTracer.render(spheres, xs, socket, address, outPort);
 				}
 				sendString("Done", outPort, socket);
 			}
