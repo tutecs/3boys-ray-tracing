@@ -286,7 +286,7 @@ class RayTracer
 					Vec3f vecData = trace(new Vec3f(0f), raydir, spheres, 0);
 					currentCol[y] = vecData;
 				}
-				String sendString = String.format("%d:%s", x, makeColString(currentCol));
+				String sendString = String.format("rowcolor:%d:%s", x, makeColString(currentCol));
 				byte[] data = sendString.getBytes();
 				DatagramPacket sendData = new DatagramPacket(data, data.length, address, port);
 				socket.send(sendData);
