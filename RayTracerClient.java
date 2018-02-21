@@ -319,7 +319,6 @@ class ReceiveMessages implements Runnable
 		// {
 			for(String message : messages)
 			{
-				System.out.println(message);
 				String[] messageData = message.split(":");
 				if(messageData[0].equals("We really out here."))
 				{
