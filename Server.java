@@ -8,44 +8,48 @@ import java.util.*;
 
 public class Server
 {
-	static InetAddress address;
+
+	static InetAddress address = null;
 	static int listenPort;
-	static int outPort;
+	static int outPort = 3334;
 	public static void getSceneAndRender()
 	{
 		try
 		{
 			DatagramSocket socket = new DatagramSocket(listenPort);
+			// address = InetAddress.getLocalHost();
 			boolean completed = false;
 			List<Sphere> spheres = getSpheres(socket);
-
+			System.out.printf("we have received %d spheres from address: %s \n", spheres.size(), address.toString());
 			String ready = "We really out here.";
 			sendString(ready, outPort, socket);
 			boolean running = true;
+			int d = -1;
 			while(running)
 			{
-				String message = receiveString(socket);
-				String[] xData = message.split(":");
-				if(xData[0].equals("End"))
+				int[] xs = getRenderRequest(socket, d);
+				d = xs[0];
+				System.out.printf("Received %d xs to render \n", xs.length - 1);
+				// String message = receiveString(socket);
+				// String[] xData = message.split(":");
+				if(xs == null)
 				{
 					running = false;
 					break;
 				}
-				if(xData[0].equals("xrange"))
+				if(xs[0] != -1)
 				{
-					int[] xs = new int[xData.length-1];
-					for(int i = 1; i < xData.length; ++i)
-					{
-						xs[i-1] = Integer.parseInt(xData[i]);
-					}
 					RayTracer.render(spheres, xs, socket, address, outPort);
 				}
+				System.out.println("Done.");
 				sendString("Done", outPort, socket);
 			}
 			socket.close();
 		} catch (SocketException e) {
         	e.printStackTrace();
-        }
+        } // catch (UnknownHostException e) {
+		// 	e.printStackTrace();
+		// }
 	}
 	public static String receiveString(DatagramSocket socket)
 	{
@@ -59,6 +63,7 @@ public class Server
 		} catch (IOException e) {
         	e.printStackTrace();
         }
+		// System.out.printf("We received message: %s", message);
 		return message;
 	}
 	public static void sendString(String send, int port, DatagramSocket socket)
@@ -84,7 +89,7 @@ public class Server
 		{
 			DatagramPacket packet = new DatagramPacket(buf, buf.length);
 			socket.receive(packet);
-			InetAddress address = packet.getAddress();
+			// InetAddress address = packet.getAddress();
 			String data = new String(packet.getData(), 0, packet.getLength());
 			String[] dataArray = data.split(":");
 			int l = Integer.parseInt(dataArray[0]);
@@ -92,6 +97,7 @@ public class Server
 			String sphereData = dataArray[2];
 			spheres.add(makeSphere(sphereData));
 			int count = 1;
+			address = packet.getAddress();
 			while(count < l)
 			{
 				buf = new byte[256];
@@ -113,12 +119,103 @@ public class Server
 					l = currentL;
 					spheres = new ArrayList<Sphere>();
 					spheres.add(makeSphere(sphereData));
+					count = 1;
 				}
 				address = packet.getAddress();
-				outPort = packet.getPort();
+				// System.out.println(address.toString());
+				// outPort = packet.getPort();
 			}
-
+			// address = InetAddress.getLocalHost();
 			return spheres;
+		} catch (UnknownHostException e) {
+        	e.printStackTrace();
+        } catch (SocketException e) {
+        	e.printStackTrace();
+        } catch (IOException e) {
+        	e.printStackTrace();
+        }
+		return null;
+	}
+	public static int[] getRenderRequest(DatagramSocket socket, int prevD)
+	{
+		ArrayList<Integer> receivedXs = new ArrayList<Integer>();
+		byte[] buf = new byte[256];
+		try
+		{
+			boolean firstX = false;
+			DatagramPacket packet;
+			String data;
+			String[] dataArray;
+			int l = 0;
+			int d = 0;
+			int count = 0;
+			while(!firstX)
+			{
+				packet = new DatagramPacket(buf, buf.length);
+				socket.receive(packet);
+				InetAddress address = packet.getAddress();
+				data = new String(packet.getData(), 0, packet.getLength());
+				dataArray = data.split(":");
+				if(dataArray[0].equals("End"))
+				{
+					return null;
+				}
+				if(dataArray[0].equals("xData"))
+				{
+					l = Integer.parseInt(dataArray[1]);
+					d = Integer.parseInt(dataArray[2]);
+					if(prevD != d)
+					{
+						int currentX = Integer.parseInt(dataArray[3]);
+						receivedXs.add(currentX);
+						firstX = true;
+						count++;
+					}
+				}
+			}
+			while(count < l)
+			{
+				System.out.printf("%d of %d : %d \n", count, l, d);
+				buf = new byte[256];
+				packet = new DatagramPacket(buf, buf.length);
+				socket.receive(packet);
+				data = new String(packet.getData(), 0, packet.getLength());
+				dataArray = data.split(":");
+				if(dataArray[0].equals("End"))
+				{
+					return null;
+				}
+				if(dataArray[0].equals("xData"))
+				{
+					int currentL = Integer.parseInt(dataArray[1]);
+					int currentD = Integer.parseInt(dataArray[2]);
+					int currentX = Integer.parseInt(dataArray[3]);
+					if(currentD == d)
+					{
+						if(!receivedXs.contains(currentX))
+						{
+							receivedXs.add(currentX);
+							++count;
+						}
+					}
+					else
+					{
+						System.out.println("Different d, clearing xs.");
+						d = currentD;
+						l = currentL;
+						receivedXs = new ArrayList<Integer>();
+						receivedXs.add(currentX);
+						count = 1;
+					}
+				}
+			}
+			int[] xs = new int[receivedXs.size() + 1];
+			xs[0] = d;
+			for(int i = 0; i < receivedXs.size(); i++)
+			{
+				xs[i+1] = receivedXs.get(i);
+			}
+			return xs;
 		} catch (UnknownHostException e) {
         	e.printStackTrace();
         } catch (SocketException e) {

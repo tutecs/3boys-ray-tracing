@@ -5,15 +5,17 @@
 import java.net.*;
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.*;
 
 
 public class RayTracerClient
 {
     private static int outPort = 3333;
-    private static int inPort = outPort;
-	private static int pxPort = 3334;
+    private static int inPort = 3334;
+	// private static int pxPort = 3334;
     private static int width = 640*2;
     private static int height = 480*2;
+	private static ReceiveMessages messageGetter = new ReceiveMessages(inPort, height, width, "Message Receiver");
 
     public static void main(String[] args) throws IOException
     {
@@ -34,25 +36,65 @@ public class RayTracerClient
 	        // Get sphere data from scene file
 	        List<Sphere> spheres = RayTracer.readScene(sceneFile);
 	        // Send sphere data to each node
-	        int[][] xs = divideWork(addresses.length);
-			ReceiveMessages messageGetter = new ReceiveMessages(inPort, height, width, "Message Receiver");
-			// ReceiveData getter = new ReceiveData(pxPort, "PixelGetter", height, width);
-			messageGetter.start();
-			isReady(xs, addresses, spheres, messageGetter, socket);
-			Vec3f[][] screen = new Vec3f[width][height];
-			int nCols = 0;
-			while(nCols < screen.length)
+			System.out.println(addresses.length);
+			ArrayList<Integer> needXs = new ArrayList<Integer>();
+			for(int i = 0; i < width; i++)
 			{
-				Vec3f[][] receivedScreen = messageGetter.getScreen();
-				for(int i = 0; i < receivedScreen.length; ++i)
+				needXs.add(i);
+			}
+	        int[][] xs = divideWork(addresses.length, needXs);
+
+			messageGetter.start();
+			isReady(xs, addresses, spheres, socket);
+			Vec3f[][] screen = new Vec3f[width][height];
+			int[] pxInCol = new int[width];
+			int nPx = 0;
+			boolean receivedPx = false;
+			while(nPx < (width*height))
+			{
+				ArrayList<String> pixelStrings = messageGetter.getPixelStrings();
+				for(String pixelString : pixelStrings)
 				{
-					if(receivedScreen[i][0] != null && screen[i][0] != null)
+					String[] messageData = pixelString.split(":");
+					int posx = Integer.parseInt(messageData[2]);
+					int posy = Integer.parseInt(messageData[3]);
+
+					String[] vecData = messageData[4].split(" ");
+					float x = Float.parseFloat(vecData[0]);
+					float y = Float.parseFloat(vecData[1]);
+					float z = Float.parseFloat(vecData[2]);
+					if(screen[posx][posy] == null)
 					{
-						screen[i] = receivedScreen[i];
-						++nCols;
+						screen[posx][posy] = new Vec3f(x, y, z);
+						pxInCol[posx] = pxInCol[posx] + 1;
+						++nPx;
+						receivedPx = true;
 					}
 				}
+				boolean hasIPs = messageGetter.hasIPs();
+				if(receivedPx && hasIPs && nPx < (width*height))
+				{
+					InetAddress[] doneIPs = messageGetter.getIPs();
+					needXs = new ArrayList<Integer>();
+					for(int i = 0; i < pxInCol.length; i++)
+					{
+						if(pxInCol[i] < height)
+						{
+							needXs.add(i);
+						}
+					}
+					System.out.printf("We still need %d columns \n", needXs.size());
+					xs = divideWork(doneIPs.length, needXs);
+					int i = 0;
+					for(InetAddress ip : doneIPs)
+					{
+						sendRender(ip, xs[i], socket);
+						i++;
+					}
+				}
+				System.out.printf("We've received %d of %d pixels \n", nPx, width*height);
 			}
+			System.out.println("Done.");
 			RayTracer.writePPM(outputFile, screen, width, height);
 			socket.close();
 		} catch (UnknownHostException e) {
@@ -86,7 +128,7 @@ public class RayTracerClient
 
 	public static void sendSpheres(InetAddress address, List<Sphere> spheres, DatagramSocket socket) {
 		Random rand = new Random();
-		int d = rand.nextInt(100);
+		int d = rand.nextInt(1000);
 		int l = spheres.size();
 		try {
 			for(Sphere sphere : spheres) {
@@ -103,100 +145,60 @@ public class RayTracerClient
 	}
     public static void sendRender(InetAddress address, int[] xs, DatagramSocket socket)
     {
-		String xString = "xrange";
-		for(int i = 0; i < xs.length; ++i)
+		Random rand = new Random();
+		int d = rand.nextInt(1000);
+		int l = xs.length;
+		System.out.printf("Sending %d xs to render: %d \n", xs.length, d);
+		boolean keepSending = true;
+		while(keepSending)
 		{
-			xString = String.format("%s:%d", xString, xs[i]);
-		}
-        byte[] data = xString.getBytes();
-		try {
-	        DatagramPacket sendPacket = new DatagramPacket(data, data.length, address, outPort);
-	        socket.send(sendPacket);
-		} catch(IOException io)
-		{
-			io.printStackTrace();
+			if(messageGetter.hasPixels(address.getHostAddress(), d))
+			{
+				keepSending = false;
+			}
+			for(int i = 0; i < xs.length; ++i)
+			{
+				String xString = String.format("%s:%d:%d:%d", "xData", l, d, xs[i]);
+				byte[] data = xString.getBytes();
+				try {
+					DatagramPacket sendPacket = new DatagramPacket(data, data.length, address, outPort);
+					socket.send(sendPacket);
+				} catch(IOException io)
+				{
+					io.printStackTrace();
+				}
+			}
 		}
     }
 
-    public static void isReady(int[][] xs, InetAddress[] addresses, List<Sphere> spheres, ReceiveMessages messageGetter, DatagramSocket socket){
+    public static void isReady(int[][] xs, InetAddress[] addresses, List<Sphere> spheres, DatagramSocket socket){
 		for(InetAddress address : addresses){
             sendSpheres(address, spheres, socket);
         }
         int i = 0;
 
-        while(i < addresses.length){
+        while(i < addresses.length) {
             List<String[]> AddressPort = messageGetter.getReady();
             //brings in the new addresses.
 
             for(String[] address : AddressPort) {
+				System.out.printf("Address %s is ready. Sending render info \n", address[0].toString());
 				try {
                 	InetAddress addr2 = InetAddress.getByName(address[0]);
                 	sendRender(addr2, xs[i], socket);
                 	++i;
-				} catch(UnknownHostException uh)
+				} catch(UnknownHostException e)
 				{
-					uh.printStackTrace();
+					e.printStackTrace();
 				}
             }
         }
     }
 
-    // public static Vec3f[][] receive(InetAddress[] addresses, int[][] xs)
-    // {
-    //     ArrayList<InetAddress> addressList = new ArrayList<InetAddress>(Arrays.asList(addresses));
-    //     boolean receivedAll = false;;
-    //     Vec3f[][] screen = new Vec3f[width][height];
-    //     try
-    //     {
-    //         DatagramSocket socket = new DatagramSocket(inPort);
-    //         while(!receivedAll)
-    //         {
-    //             byte[] screenData = new byte[1024];
-    //             DatagramPacket packet = new DatagramPacket(screenData, screenData.length);
-    //             socket.receive(packet);
-    //             ByteArrayInputStream in = new ByteArrayInputStream(screenData);
-    //             ObjectInputStream is = new ObjectInputStream(in);
-    //             Vec3f[][] partScreen = null;
-    //             try
-    //             {
-    //                 partScreen = (Vec3f[][]) is.readObject();
-    //             }
-    //             catch (ClassNotFoundException cn)
-    //             {
-    //                 cn.printStackTrace();
-    //                 System.exit(1);
-    //             }
-    //             String inAddress = packet.getAddress().getHostAddress();
-    //             int addressIDX = addressList.indexOf(inAddress);
-    //             if(addressIDX >= 0)
-    //             {
-    //                 int xStart = xs[addressIDX][0], xStop = xs[addressIDX][1];
-    //                 for (int y = 0; y < height; ++y)
-    //                 {
-    //                     for (int x = xStart; x < xStop; ++x)
-    //                     {
-    //                         screen[x][y] = partScreen[x][y];
-    //                     }
-    //                 }
-    //                 addressList.remove(addressIDX);
-    //             }
-    //             if(addressList.isEmpty()) { receivedAll = true; }
-    //         }
-    //         socket.close();
-    //     }
-    //     catch (UnknownHostException e) {
-    //     e.printStackTrace();
-    //     } catch (SocketException e) {
-    //     e.printStackTrace();
-    //     } catch (IOException e) {
-    //     e.printStackTrace();
-    //     }
-    //     return screen;
-    // }
-    public static int[][] divideWork(int nNodes)
+    public static int[][] divideWork(int nNodes, ArrayList<Integer> needXs)
     {
         double dNodes = (double) nNodes;
-        double dstepSize = width/nNodes;
+        double dstepSize = needXs.size()/nNodes;
         boolean even = true;
         int stepSize = (int) dstepSize;
 		int[][] xs = new int[nNodes][stepSize];
@@ -210,7 +212,7 @@ public class RayTracerClient
 			int[] nodeXs = new int[stepSize];
 			for(int j = 0; j < stepSize; ++j)
 			{
-				nodeXs[j] = current;
+				nodeXs[j] = needXs.get(current);
 				++current;
 			}
 			xs[i] = nodeXs;
@@ -220,7 +222,7 @@ public class RayTracerClient
 			int[] nodeXs = new int[stepSize];
 			for(int j = 0; j < stepSize; ++j)
 			{
-				nodeXs[j] = current;
+				nodeXs[j] = needXs.get(current);
 				++current;
 			}
             xs[nNodes-1] = nodeXs;
@@ -230,7 +232,7 @@ public class RayTracerClient
 			int[] nodeXs = new int[stepSize+1];
 			for(int j = 0; j < stepSize+1; ++j)
 			{
-				nodeXs[j] = current;
+				nodeXs[j] = needXs.get(current);
 				++current;
 			}
             xs[nNodes-1] = nodeXs;
@@ -238,75 +240,13 @@ public class RayTracerClient
         return xs;
     }
 }
-// class ReceiveData implements Runnable
-// {
-// 	private Thread t;
-// 	private String threadName;
-// 	private int listeningPort;
-// 	private int height;
-// 	private int width;
-// 	private List<String> color = Collections.synchronizedList(new ArrayList<String>());
-//
-// 	public ReceiveData(int port, String name, int height, int width)
-// 	{
-// 		listeningPort = port;
-// 		threadName = name;
-// 		this.height = height;
-// 		this.width = width;
-// 		// color = new Vec3f[width][height];
-// 	}
-// 	public Vec3f receivedCols()
-// 	{
-// 		return color;
-// 	}
-// 	public void run()
-// 	{
-// 		int nCols = 0;
-// 		try
-// 		{
-// 			DatagramSocket socket = new DatagramSocket(listeningPort);
-// 			while(nCols < width)
-// 			{
-// 				byte[] receiveData = new byte[1024];
-// 				DatagramPacket receivePacket = new DatagramPacket(receiveData,receiveData.length);
-// 				socket.receive(receivePacket);
-// 				String data = new String(receivePacket.getData(), 0, receivePacket.length);
-// 				String[] edata = data.spilt(":");
-// 				if(edata.length == (1 + (height)))
-// 				{
-// 					int posx = Integer.parseInt(edata[0]);
-// 					for(int i = 1; i < edata.length; ++i)
-// 					{
-// 						String[] vecData = edata[i].split(" ");
-// 					    float x = Float.parseFloat(vecData[0]);
-// 					    float y = Float.parseFloat(vecData[1]);
-// 					    float z = Float.parseFloat(vecData[2]);
-// 						color[posx][i] = new Vec3f(x, y, z);
-// 					}
-// 					++nCols;
-// 				}
-// 			}
-// 			socket.close();
-// 		} catch (InterruptedException e) {
-//      		System.out.println("Thread " +  threadName + " interrupted.");
-//   		} catch (SocketException e) {
-//         	e.printStackTrace();
-//         }
-// 	}
-// 	public void start()
-// 	{
-// 		if(t == null)
-// 		{
-// 			t = new Thread(this, threadName);
-// 			t.start();
-// 		}
-// 	}
-// }
+
 class ReceiveMessages implements Runnable
 {
 	private Thread t;
 	private String threadName;
-	private List<String> messages;
+	private CopyOnWriteArrayList<String> messages;
+	private CopyOnWriteArrayList<InetAddress> doneIPs;
 	private int port;
 	private int height;
 	private int width;
@@ -316,7 +256,8 @@ class ReceiveMessages implements Runnable
 		this.height = height;
 		this.width = width;
 		threadName = name;
-		messages = Collections.synchronizedList(new ArrayList<String>());
+		messages = new CopyOnWriteArrayList<String>();
+		doneIPs = new CopyOnWriteArrayList<InetAddress>();
 	}
 	public void run()
 	{
@@ -325,15 +266,20 @@ class ReceiveMessages implements Runnable
 			DatagramSocket socket = new DatagramSocket(port);
 			while(true)
 			{
-				synchronized (messages)
+				byte[] receiveData = new byte[1024];
+				DatagramPacket receivePacket = new DatagramPacket(receiveData,receiveData.length);
+				socket.receive(receivePacket);
+				String data = new String(receivePacket.getData(), 0, receivePacket.getLength());
+				InetAddress ipAddress = receivePacket.getAddress();
+				String address = ipAddress.getHostAddress();
+				int fromPort = receivePacket.getPort();
+				String message = String.format("%s:%s:%d", data, address, fromPort);
+				if(data.contains("Done"))
 				{
-					byte[] receiveData = new byte[1024];
-					DatagramPacket receivePacket = new DatagramPacket(receiveData,receiveData.length);
-					socket.receive(receivePacket);
-					String data = new String(receivePacket.getData(), 0, receivePacket.getLength());
-					String address = receivePacket.getAddress().getHostAddress();
-					int fromPort = receivePacket.getPort();
-					String message = String.format("%s:%s:%d", data, address, fromPort);
+					doneIPs.add(ipAddress);
+				}
+				else
+				{
 					messages.add(message);
 				}
 			}
@@ -349,13 +295,31 @@ class ReceiveMessages implements Runnable
 			io.printStackTrace();
 		}
 	}
+	public boolean hasIPs()
+	{
+		if(!doneIPs.isEmpty())
+		{
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+	public InetAddress[] getIPs()
+	{
+		InetAddress[] addresses = doneIPs.toArray(new InetAddress[doneIPs.size()]);
+		doneIPs.removeAll(doneIPs);
+		return addresses;
+	}
 	public ArrayList<String[]> getReady()
 	{
 		ArrayList<String[]> addresses = new ArrayList<String[]>();
-		synchronized(messages)
-		{
+		// synchronized(messages)
+		// {
 			for(String message : messages)
 			{
+				System.out.println(message);
 				String[] messageData = message.split(":");
 				if(messageData[0].equals("We really out here."))
 				{
@@ -364,32 +328,35 @@ class ReceiveMessages implements Runnable
 					messages.remove(message);
 				}
 			}
-		}
+		// }
 		return addresses;
 	}
-	public Vec3f[][] getScreen()
+	public boolean hasPixels(String address, int d)
 	{
-		Vec3f[][] screen = new Vec3f[width][height];
-		synchronized(messages)
+		for(String message : messages)
 		{
-			for(String message : messages)
+			String[] messageData = message.split(":");
+			if(messageData[0].equals("rowcolor"))
 			{
-				String[] messageData = message.split(":");
-				if(messageData[0].equals("rowcolor"))
-				{
-					int posx = Integer.parseInt(messageData[0]);
-					for(int i = 1; i < messageData.length; ++i)
-					{
-						String[] vecData = messageData[i].split(" ");
-					    float x = Float.parseFloat(vecData[0]);
-					    float y = Float.parseFloat(vecData[1]);
-					    float z = Float.parseFloat(vecData[2]);
-						screen[posx][i] = new Vec3f(x, y, z);
-					}
-				}
+				if(messageData[5].equals(address) && messageData[1].equals(String.valueOf(d)))
+				return true;
 			}
 		}
-		return screen;
+		return false;
+	}
+	public ArrayList<String> getPixelStrings()
+	{
+		ArrayList<String> pixels = new ArrayList<String>();
+		for(String message : messages)
+		{
+			String[] messageData = message.split(":");
+			if(messageData[0].equals("rowcolor"))
+			{
+				pixels.add(message);
+				messages.remove(message);
+			}
+		}
+		return pixels;
 	}
 	public void start()
 	{

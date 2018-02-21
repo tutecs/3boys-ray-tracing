@@ -274,8 +274,11 @@ class RayTracer
 			float aspectratio = (float)width / (float)height;
 			float angle = (float)Math.tan((float)Math.PI * 0.5f * fov / 180.0f);
 			// Trace rays
-			for (Integer x : xs) {
+			System.out.println("Rendering");
+			int d = xs[0];
+			for (int i = 1; i < xs.length; i++) {
 				Vec3f[] currentCol = new Vec3f[height];
+				int x = xs[i];
 				for (int y = 0; y < height; ++y) {
 					//System.out.println(String.format("Pixel: %d, %d", x, y));
 					float xx = (2f * ((x + 0.5f) * invWidth) - 1f) * angle * aspectratio;
@@ -285,11 +288,11 @@ class RayTracer
 					raydir.normalize();
 					Vec3f vecData = trace(new Vec3f(0f), raydir, spheres, 0);
 					currentCol[y] = vecData;
+					String sendString = String.format("rowcolor:%d:%d:%d:%s", d, x, y, vecData.toString());
+					byte[] data = sendString.getBytes();
+					DatagramPacket sendData = new DatagramPacket(data, data.length, address, port);
+					socket.send(sendData);
 				}
-				String sendString = String.format("rowcolor:%d:%s", x, makeColString(currentCol));
-				byte[] data = sendString.getBytes();
-				DatagramPacket sendData = new DatagramPacket(data, data.length, address, port);
-				socket.send(sendData);
 			}
 		}
 		catch (UnknownHostException e) {
