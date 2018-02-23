@@ -139,6 +139,7 @@ public class RayTracerClient
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
+			messageGetter.stop();
 			socket.close();
 			return;
 		} catch (UnknownHostException e) {
