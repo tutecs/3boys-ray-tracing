@@ -90,7 +90,7 @@ public class RayTracerClient
 				{
 					count = 0;
 				}
-				if(pixelStrings.isEmpty() && receivedPx && hasIPs > 5 && nPx < (width*height)-1 && count > 100)
+				if(pixelStrings.isEmpty() && receivedPx && hasIPs > 0 && nPx < (width*height)-1 && count > 100)
 				{
 					InetAddress[] doneIPs = messageGetter.getIPs();
 					needXs = new ArrayList<Integer>();
@@ -120,26 +120,34 @@ public class RayTracerClient
 					messageGetter.clearIPs();
 					count = 0;
 				}
-				System.out.printf("We've received %d of %d pixels \n", nPx, width*height);
+				// System.out.printf("We've received %d of %d pixels \n", nPx, width*height);
 			}
 			System.out.println("Done.");
 			RayTracer.writePPM(outputFile, screen, width, height);
-			try
-			{
-				byte[] data = "End".getBytes();
-				for(InetAddress ip : addresses)
-				{
-					DatagramPacket packet = new DatagramPacket(data, data.length, ip, outPort);
-					socket.send(packet);
-				}
-			} catch (UnknownHostException e) {
-				e.printStackTrace();
-			} catch (SocketException e) {
-				e.printStackTrace();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
 			messageGetter.stop();
+			// try
+			// {
+			// 	Thread.sleep(1000);
+			// }
+			// catch (InterruptedException ie)
+			// {
+			// 	ie.printStackTrace();
+			// }
+			// try
+			// {
+			// 	byte[] data = "End".getBytes();
+			// 	for(InetAddress ip : addresses)
+			// 	{
+			// 		DatagramPacket packet = new DatagramPacket(data, data.length, ip, outPort);
+			// 		socket.send(packet);
+			// 	}
+			// } catch (UnknownHostException e) {
+			// 	e.printStackTrace();
+			// } catch (SocketException e) {
+			// 	e.printStackTrace();
+			// } catch (IOException e) {
+			// 	e.printStackTrace();
+			// }
 			socket.close();
 			return;
 		} catch (UnknownHostException e) {
@@ -204,9 +212,9 @@ public class RayTracerClient
 			if(currentTime - startTime > 0.1)
 			{
 				return;
-		 	} 
+		 	}
 			if(messageGetter.hasPixels(address.getHostAddress(), d))
-			{ 
+			{
 				return;
 			}
 			for(int i = 0; i < xs.length; ++i)
@@ -226,6 +234,7 @@ public class RayTracerClient
     }
 
     public static void isReady(int[][] xs, InetAddress[] addresses, List<Sphere> spheres, DatagramSocket socket){
+		System.out.println("isReady entered");
 		for(InetAddress address : addresses){
             sendSpheres(address, spheres, socket);
         }
@@ -240,16 +249,17 @@ public class RayTracerClient
 				send = false;
 			}
             InetAddress[] readyIPs = messageGetter.getIPs();
-            //brings in the new addresses.
+            // brings in the new addresses.
+			// System.out.printf("There are %d ready ips \n", readyIPs.length);
 
             for(InetAddress ip : readyIPs) {
 				System.out.printf("Address %s is ready. Sending render info \n", ip.getHostName());
                 sendRender(ip, xs[i], socket);
                 ++i;
-				if(i < addresses.length)
-				{
-					return;
-				}
+				// if(i < addresses.length)
+				// {
+				// 	return;
+				// }
             }
         }
     }
@@ -309,7 +319,7 @@ class ReceiveMessages implements Runnable
 	private int port;
 	private int height;
 	private int width;
-	private final AtomicBoolean running = new AtomicBoolean(true);
+	private volatile boolean running = true;
 	public ReceiveMessages(int listenPort, int height, int width, String name)
 	{
 		port = listenPort;
@@ -319,16 +329,12 @@ class ReceiveMessages implements Runnable
 		messages = new CopyOnWriteArrayList<String>();
 		doneIPs = new CopyOnWriteArrayList<InetAddress>();
 	}
-	public void stop()
-	{
-		running.set(false);
-	}
 	public void run()
 	{
 		try
 		{
 			DatagramSocket socket = new DatagramSocket(port);
-			while(running.get())
+			while(running)
 			{
 				byte[] receiveData = new byte[1024];
 				DatagramPacket receivePacket = new DatagramPacket(receiveData,receiveData.length);
@@ -343,6 +349,7 @@ class ReceiveMessages implements Runnable
 					if(!doneIPs.contains(ipAddress))
 					{
 						doneIPs.add(ipAddress);
+						System.out.printf("%s ready \n", ipAddress.getHostName());
 					}
 				}
 				else
@@ -354,17 +361,19 @@ class ReceiveMessages implements Runnable
 				}
 			}
 			// socket.close();
+			System.out.println("Thread Stopping.");
+			// Thread.currentThread().interrupt();
+			// return;
 		}
 		// catch (InterruptedException e) {
-     	// System.out.println("Thread " +  threadName + " interrupted.");
-  		// }
+		// 	System.out.println("Thread " +  threadName + " interrupted.");
+		// }
 		catch (SocketException e) {
         	e.printStackTrace();
         }
 		catch (IOException io) {
 			io.printStackTrace();
 		}
-		Thread.currentThread().interrupt();
 		return;
 	}
 	public void clearIPs()
@@ -427,6 +436,11 @@ class ReceiveMessages implements Runnable
 			}
 		}
 		return pixels;
+	}
+	public void stop()
+	{
+		System.out.println("Stop Called.");
+		running = false;
 	}
 	public void start()
 	{

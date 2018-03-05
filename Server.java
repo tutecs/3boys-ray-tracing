@@ -21,6 +21,11 @@ public class Server
 			boolean completed = false;
 			List<Sphere> spheres = getSpheres(socket);
 			System.out.printf("we have received %d spheres from address: %s \n", spheres.size(), address.toString());
+			// try {
+			// 	address = InetAddress.getLocalHost();
+			// } catch (UnknownHostException e) {
+			// 	e.printStackTrace();
+			// }
 			String ready = "Done.";
 			sendString(ready, outPort, socket);
 			boolean running = true;
@@ -28,7 +33,7 @@ public class Server
 			while(running)
 			{
 				int[] xs = getRenderRequest(socket, d);
-				// System.out.printf("Received %d xs to render \n", xs.length - 1);
+				System.out.printf("Received %d xs to render \n", xs.length - 1);
 				// String message = receiveString(socket);
 				// String[] xData = message.split(":");
 				if(xs != null && xs[0] == -1)
@@ -188,12 +193,12 @@ public class Server
 			}
 			while(count < l)
 			{
-				
+
 				System.out.printf("%d of %d : %d \n", count, l, d);
 				buf = new byte[256];
 				packet = new DatagramPacket(buf, buf.length);
-		
-				
+
+
 				socket.setSoTimeout(1*1000);
 				try
 				{
