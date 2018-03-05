@@ -21,25 +21,29 @@ public class Server
 			boolean completed = false;
 			List<Sphere> spheres = getSpheres(socket);
 			System.out.printf("we have received %d spheres from address: %s \n", spheres.size(), address.toString());
-			String ready = "We really out here.";
+			String ready = "Done.";
 			sendString(ready, outPort, socket);
 			boolean running = true;
 			int d = -1;
 			while(running)
 			{
 				int[] xs = getRenderRequest(socket, d);
-				d = xs[0];
-				System.out.printf("Received %d xs to render \n", xs.length - 1);
+				// System.out.printf("Received %d xs to render \n", xs.length - 1);
 				// String message = receiveString(socket);
 				// String[] xData = message.split(":");
-				if(xs == null)
+				if(xs != null && xs[0] == -1)
 				{
 					running = false;
 					break;
 				}
-				if(xs[0] != -1)
+				if(xs != null)
 				{
+					d = xs[0];
 					RayTracer.render(spheres, xs, socket, address, outPort);
+				}
+				else
+				{
+					socket = new DatagramSocket(listenPort);
 				}
 				System.out.println("Done.");
 				sendString("Done", outPort, socket);
@@ -151,14 +155,23 @@ public class Server
 			int count = 0;
 			while(!firstX)
 			{
+				socket.setSoTimeout(1*1000);
 				packet = new DatagramPacket(buf, buf.length);
-				socket.receive(packet);
-				InetAddress address = packet.getAddress();
+				try
+				{
+					socket.receive(packet);
+				}
+				catch (SocketTimeoutException e)
+				{
+					socket.close();
+					return null;
+				}
+
 				data = new String(packet.getData(), 0, packet.getLength());
 				dataArray = data.split(":");
 				if(dataArray[0].equals("End"))
 				{
-					return null;
+					return new int[] {-1};
 				}
 				if(dataArray[0].equals("xData"))
 				{
@@ -175,10 +188,22 @@ public class Server
 			}
 			while(count < l)
 			{
+				
 				System.out.printf("%d of %d : %d \n", count, l, d);
 				buf = new byte[256];
 				packet = new DatagramPacket(buf, buf.length);
-				socket.receive(packet);
+		
+				
+				socket.setSoTimeout(1*1000);
+				try
+				{
+					socket.receive(packet);
+				}
+				catch (SocketTimeoutException e)
+				{
+					socket.close();
+					return null;
+				}
 				data = new String(packet.getData(), 0, packet.getLength());
 				dataArray = data.split(":");
 				if(dataArray[0].equals("End"))
