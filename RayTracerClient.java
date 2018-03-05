@@ -169,6 +169,7 @@ public class RayTracerClient
 				}
 			}
 		}
+		System.out.println("Done.");
     }
 
     public static void isReady(int[][] xs, InetAddress[] addresses, List<Sphere> spheres, DatagramSocket socket){
